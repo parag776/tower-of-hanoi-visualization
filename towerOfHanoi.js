@@ -15,6 +15,11 @@ export default class towerOfHanoi{
     #pegColor = "brown"
     #diskColor = "orange";
     #diskAnimateTime = 1;
+    #stepMode = false;
+
+    // abort controller
+    #abortController = new AbortController();
+    #abortSignal = this.#abortController.signal;
 
     // helping variables
     #mainSVG;
@@ -48,12 +53,9 @@ export default class towerOfHanoi{
     #diskPegDP;
 
     // step methods
-    #stepMode = false;
     #waitingState = false;
     #stepFunctionInstance;
     #stepResolve;
-
-
 
     // calculations
 
@@ -149,18 +151,34 @@ export default class towerOfHanoi{
         const animate = document.createElementNS(this.#svgNS, "animateMotion");
         animate.setAttribute("dur", `${this.#diskAnimateTime}s`);
         animate.setAttribute("begin", "indefinite");
+        animate.setAttribute("end", "indefinite");
         animate.setAttribute("path", animationPath)
         animate.setAttribute("fill", "freeze");
         curDisk.appendChild(animate);
         return new Promise((resolve, reject)=>{
-            animate.addEventListener('endEvent', ()=>{
+            const animateEndEventListner = ()=>{
                 curDisk.setAttribute("x", x3);
                 curDisk.setAttribute("y", y3);
                 this.#diskSVGArray[i].pop();
                 this.#diskSVGArray[j].push(curDisk);
+                animate.endElement();
                 curDisk.removeChild(animate);
+                this.#abortSignal.removeEventListener('abort', abortEventListener);
                 resolve()
-            });
+            }
+            const abortEventListener = ()=>{
+                animate.removeEventListener('endEvent', animateEndEventListner)
+                animate.endElement();
+                curDisk.removeChild(animate);
+                this.#abortSignal.removeEventListener("abort", abortEventListener);
+                reject("aborted");
+            }
+            if(this.#abortSignal.aborted){
+                curDisk.removeChild(animate);
+                reject("aborted");
+            }
+            this.#abortSignal.addEventListener("abort", abortEventListener, {once: true})
+            animate.addEventListener('endEvent', animateEndEventListner);
             animate.beginElement();
         })
     }
@@ -224,7 +242,7 @@ export default class towerOfHanoi{
         }
     }
 
-    constructor(div, options={height: 400, width: 800, pegCount: 3, diskCount: 5, verticalMarginPercent: 0.05, HorizontalMarginPercent: 0.05, baseColor: "brown", pegColor: "brown", diskColor: "orange", diskAnimateTime: 1}){
+    constructor(div, options={height: 400, width: 800, pegCount: 3, diskCount: 5, verticalMarginPercent: 0.05, HorizontalMarginPercent: 0.05, baseColor: "brown", pegColor: "brown", diskColor: "orange", diskAnimateTime: 1, stepMode: false}){
         this.#div = div;
         for(const optionValue in options){
             eval(`this.#${optionValue} = ${typeof options[optionValue] === "string"?`"${options[optionValue]}"`:options[optionValue]};`);
@@ -237,20 +255,24 @@ export default class towerOfHanoi{
     }
 
     async play(){
-        if(this.#pegCount<2) {
-            console.error("Do you even want to see an animation? if you do, please atleast add 2 pegs")
-            return;
-        }
-        if(this.#diskCount==0) return;
-        if(this.#pegCount===2){
-            if(this.#diskCount>1){
-                console.error("sorry i don't have all the time in the universe too run an animation for you. BTW, all the time in the universe is also not enough.");
+        try{
+            if(this.#pegCount<2) {
+                console.error("Do you even want to see an animation? if you do, please atleast add 2 pegs")
                 return;
             }
-            await this.#moveDisk(0, 1);
-            return;
+            if(this.#diskCount==0) return;
+            if(this.#pegCount===2){
+                if(this.#diskCount>1){
+                    console.error("sorry i don't have all the time in the universe too run an animation for you. BTW, all the time in the universe is also not enough.");
+                    return;
+                }
+                await this.#moveDisk(0, 1);
+                return;
+            }
+            await this.#playHelper(0, this.#pegCount-1, this.#pegCount, this.#diskCount, (1<<this.#pegCount)-1);
+        } catch(error){
+            console.log(error);
         }
-        await this.#playHelper(0, this.#pegCount-1, this.#pegCount, this.#diskCount, (1<<this.#pegCount)-1);
     }
 
     pause(){
@@ -260,7 +282,8 @@ export default class towerOfHanoi{
         this.#mainSVG.unpauseAnimations();
     }
     abort(){
-
+        this.#abortController.abort();
+        console.log(this.#abortController);
     }
     step(){
         if(this.#waitingState){
