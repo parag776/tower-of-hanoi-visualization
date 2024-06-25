@@ -283,7 +283,6 @@ export default class towerOfHanoi{
     }
     abort(){
         this.#abortController.abort();
-        console.log(this.#abortController);
     }
     step(){
         if(this.#waitingState){
@@ -294,6 +293,18 @@ export default class towerOfHanoi{
     toggleStepMode(){
         if(this.#stepMode) this.step();
         this.#stepMode = !this.#stepMode;
+    }
+
+    setStepMode(){
+        this.#stepMode = true;
+    }
+
+    unsetStepMode(){
+        this.#stepMode = false;
+    }
+
+    isStepMode(){
+        return this.#stepMode;
     }
 
 }
